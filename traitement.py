@@ -5,7 +5,7 @@ import shutil
 import hashlib
 from pathlib import Path
 import pytesseract
-from PIL import Image
+from PIL import Image, ImageEnhance
 
 DOSSIER_ENTREE = Path("image_a_traiter")
 DOSSIER_TRAITE = Path("image_traiter")
@@ -15,7 +15,11 @@ FICHIER_HASH = Path("hashes_traites.json")
 
 EXTENSIONS_ACCEPTEES = {".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".gif", ".webp"}
 
+LARGEUR_MAX_OCR = 1200
+
 TYPES_DOCUMENTS = [
+    "facture d'avoir",
+    "avoir",
     "facture",
     "devis",
     "bon de commande",
@@ -58,9 +62,21 @@ def calculer_hash(chemin_image):
     return hasher.hexdigest()
 
 
+def preprocesser_image(chemin_image):
+    image = Image.open(chemin_image)
+    largeur, hauteur = image.size
+    if largeur > LARGEUR_MAX_OCR:
+        ratio = LARGEUR_MAX_OCR / largeur
+        nouvelle_hauteur = int(hauteur * ratio)
+        image = image.resize((LARGEUR_MAX_OCR, nouvelle_hauteur), Image.LANCZOS)
+    image = image.convert("L")
+    image = ImageEnhance.Contrast(image).enhance(2.0)
+    return image
+
+
 def extraire_texte_ocr(chemin_image):
     try:
-        image = Image.open(chemin_image)
+        image = preprocesser_image(chemin_image)
         texte = pytesseract.image_to_string(image, lang="fra+eng")
         return texte
     except Exception as e:
@@ -72,14 +88,17 @@ def detecter_type_document(texte):
     texte_lower = texte.lower()
     for type_doc in TYPES_DOCUMENTS:
         if type_doc in texte_lower:
-            return type_doc.capitalize()
+            mots = type_doc.split()
+            type_formate = " ".join(m.capitalize() for m in mots)
+            return type_formate
     return None
 
 
 def extraire_numero_document(texte):
     patterns = [
-        r"(?:n[°o]|num[eé]ro|number|ref[eé]rence|r[eé]f\.?|facture n[°o]?|devis n[°o]?|bon n[°o]?)\s*[:\-]?\s*([A-Z0-9][-A-Z0-9/_.]{2,20})",
-        r"\b(?:N[°o]|#)\s*([A-Z0-9][-A-Z0-9/_.]{2,20})\b",
+        r"\b([A-Z]{2,4}\d{4,12})\b",
+        r"(?:num[eé]ro|n[°o]|number|r[eé]f[eé]rence|r[eé]f\.?)\s*[:\-]?\s*([A-Z0-9][-A-Z0-9/_.]{2,20})",
+        r"\|\s*([A-Z]{2,4}\d{4,12})\s*\|",
         r"\b(\d{4,12})\b",
     ]
     for pattern in patterns:
