@@ -23,9 +23,9 @@ args = "Traitement OCR"
 name = "Traitement OCR"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python traitement.py"
-
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python watcher.py"
