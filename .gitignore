@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.env
+*.log
+hashes_traites.json
+image_a_traiter/
+image_traiter/
+image_non_traitable/
+doublon/
