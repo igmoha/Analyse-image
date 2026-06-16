@@ -11,8 +11,6 @@ PRÉREQUIS
      → Télécharger et installer "tesseract-ocr-w64-setup-*.exe" (Windows 64 bits)
      → Cocher les langues "French" et "English" pendant l'installation
 
-2. ⚠️  METTRE À JOUR le chemin TESSERACT_PATH ci-dessous selon votre installation.
-     Chemin par défaut Windows : C:\Program Files\Tesseract-OCR\tesseract.exe
 
 3. Installer les dépendances Python :
      pip install pytesseract Pillow requests
