@@ -77,17 +77,21 @@ def detecter_type_document(texte):
 
 def extraire_numero_document(texte):
     patterns = [
-        r"\b([A-Z]{2,4}\d{4,12})\b",
-        r"(?:num[eé]ro|n[°o]|number|r[eé]f[eé]rence|r[eé]f\.?)\s*[:\-]?\s*([A-Z0-9][-A-Z0-9/_.]{2,20})",
-        r"\|\s*([A-Z]{2,4}\d{4,12})\s*\|",
-        r"\b(\d{4,12})\b",
+        # Numéro dans la ligne qui suit l'en-tête de tableau "Numéro | Date ..."
+        r"Num[eé]ro\s*[\|].*?\n\s*([A-Z0-9][-A-Z0-9/]{1,15})",
+        # Code alphanumérique avec préfixe lettres + chiffres (ex: FAC2400258, AV2600018)
+        r"\b([A-Z]{2,5}\d{5,12})\b",
+        # Numéro pur précédé du mot-clé numéro/n°
+        r"(?:num[eé]ro|n[°o])\s*[:\-]?\s*(\d{4,12})",
+        # Suite de chiffres seuls (5 à 10 chiffres) = numéro de facture simple
+        r"\b(\d{5,10})\b",
     ]
     for pattern in patterns:
         matches = re.findall(pattern, texte, re.IGNORECASE | re.MULTILINE)
         if matches:
             for m in matches:
                 candidat = m.strip()
-                if len(candidat) >= 4:
+                if len(candidat) >= 5:
                     return candidat
     return None
 
