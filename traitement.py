@@ -19,27 +19,8 @@ LARGEUR_MAX_OCR = 1200
 
 TYPES_DOCUMENTS = [
     "facture d'avoir",
-    "avoir",
+    "bon de livraison",
     "facture",
-    "devis",
-    "bon de commande",
-    "bordereau",
-    "contrat",
-    "recu",
-    "reçu",
-    "ticket",
-    "relevé",
-    "releve",
-    "attestation",
-    "bulletin",
-    "fiche",
-    "rapport",
-    "note",
-    "ordonnance",
-    "avis",
-    "quittance",
-    "acte",
-    "certificat",
 ]
 
 
