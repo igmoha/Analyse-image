@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "msDI7BYtuwxBU5J-0UEfI"
+uri = "file://analyse-image.zip"
+type = "unspecified"
+title = "analyse-image.zip — Code source complet"
