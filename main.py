@@ -129,50 +129,78 @@ def sauvegarder_json(chemin_sortie: Path, donnees: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Point d'entrée
+# Chargement des moteurs (modules) — fait une seule fois, réutilisable
 # ---------------------------------------------------------------------------
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Pipeline OCR — combine Tesseract + EasyOCR et exporte en JSON."
-    )
-    parser.add_argument("source",   help="Chemin local ou URL de l'image.")
-    parser.add_argument("--output", "-o", default="resultat.json",
-                        help="Chemin du fichier JSON de sortie (défaut : resultat.json).")
-    parser.add_argument("--verbose", "-v", action="store_true",
-                        help="Affiche un résumé détaillé dans la console.")
-    args = parser.parse_args()
+def charger_moteurs(verbose: bool = False) -> dict:
+    """
+    Importe dynamiquement les modules OCR / extraction.
 
-    source      = args.source
-    output_path = Path(args.output)
-
-    # ------------------------------------------------------------------
-    # Chargement dynamique des modules (tolérant aux imports manquants)
-    # ------------------------------------------------------------------
-    extraire_texte         = None
-    extraire_texte_easyocr = None
-    extract_info           = None
+    Returns:
+        dict avec les clés 'extraire_texte', 'extraire_texte_easyocr',
+        'extract_info' (valeur = None si le module est indisponible).
+    """
+    moteurs = {
+        "extraire_texte": None,
+        "extraire_texte_easyocr": None,
+        "extract_info": None,
+    }
 
     try:
-        ocr_module     = importlib.import_module("ocr")
-        extraire_texte = getattr(ocr_module, "extraire_texte")
+        ocr_module = importlib.import_module("ocr")
+        moteurs["extraire_texte"] = getattr(ocr_module, "extraire_texte")
     except Exception as exc:
-        print(f"[INFO] ocr.py (Tesseract) indisponible : {exc}")
+        if verbose:
+            print(f"[INFO] ocr.py (Tesseract) indisponible : {exc}")
 
     try:
-        ocr_easy_module        = importlib.import_module("ocr_easy")
-        extraire_texte_easyocr = getattr(ocr_easy_module, "extraire_texte_easyocr")
+        ocr_easy_module = importlib.import_module("ocr_easy")
+        moteurs["extraire_texte_easyocr"] = getattr(ocr_easy_module, "extraire_texte_easyocr")
     except Exception as exc:
-        print(f"[INFO] ocr_easy.py (EasyOCR) indisponible : {exc}")
+        if verbose:
+            print(f"[INFO] ocr_easy.py (EasyOCR) indisponible : {exc}")
 
     try:
         extraction_module = importlib.import_module("extraction_text")
-        extract_info      = getattr(extraction_module, "extract_info")
+        moteurs["extract_info"] = getattr(extraction_module, "extract_info")
     except Exception as exc:
-        print(f"[INFO] extraction_text.py indisponible : {exc}")
+        if verbose:
+            print(f"[INFO] extraction_text.py indisponible : {exc}")
+
+    return moteurs
+
+
+# ---------------------------------------------------------------------------
+# Fonction principale réutilisable (sans argparse, sans sys.exit)
+# ---------------------------------------------------------------------------
+
+def traiter_image(source: str, moteurs: dict = None, verbose: bool = False) -> dict:
+    """
+    Exécute le pipeline OCR complet sur une image et retourne le résultat.
+
+    Args:
+        source:  chemin local ou URL de l'image
+        moteurs: dict produit par charger_moteurs() ; si None, est rechargé
+                 à chaque appel (plus lent — préférer le passer explicitement
+                 quand on traite plusieurs images d'affilée).
+        verbose: affiche un résumé détaillé dans la console.
+
+    Returns:
+        dict au même format que celui sauvegardé par sauvegarder_json().
+
+    Raises:
+        RuntimeError: si aucun moteur OCR n'est disponible ou si aucun texte
+                      n'a pu être extrait de l'image.
+    """
+    if moteurs is None:
+        moteurs = charger_moteurs(verbose=verbose)
+
+    extraire_texte         = moteurs.get("extraire_texte")
+    extraire_texte_easyocr = moteurs.get("extraire_texte_easyocr")
+    extract_info           = moteurs.get("extract_info")
 
     if extraire_texte is None and extraire_texte_easyocr is None:
-        sys.exit("[ERREUR] Aucun moteur OCR disponible. Vérifiez ocr.py et ocr_easy.py.")
+        raise RuntimeError("Aucun moteur OCR disponible. Vérifiez ocr.py et ocr_easy.py.")
 
     # ------------------------------------------------------------------
     # Exécution des moteurs OCR
@@ -184,16 +212,18 @@ def main() -> None:
         try:
             texte_tesseract = extraire_texte(source)
         except Exception as exc:
-            print(f"[INFO] Tesseract a échoué : {exc}")
+            if verbose:
+                print(f"[INFO] Tesseract a échoué : {exc}")
 
     if extraire_texte_easyocr is not None:
         try:
             texte_easyocr = extraire_texte_easyocr(source)
         except Exception as exc:
-            print(f"[INFO] EasyOCR a échoué : {exc}")
+            if verbose:
+                print(f"[INFO] EasyOCR a échoué : {exc}")
 
     if not texte_tesseract and not texte_easyocr:
-        sys.exit("[ERREUR] Aucun texte extrait. Vérifiez l'image ou les moteurs OCR.")
+        raise RuntimeError("Aucun texte extrait. Vérifiez l'image ou les moteurs OCR.")
 
     # ------------------------------------------------------------------
     # Fusion et sélection du meilleur résultat
@@ -212,12 +242,13 @@ def main() -> None:
             type_doc   = info.get("type")
             numero_doc = info.get("numero")
         except Exception as exc:
-            print(f"[INFO] Extraction document a échoué : {exc}")
+            if verbose:
+                print(f"[INFO] Extraction document a échoué : {exc}")
 
     # ------------------------------------------------------------------
-    # Construction et sauvegarde du JSON
+    # Construction du résultat
     # ------------------------------------------------------------------
-    nom_fichier = Path(source).name if not source.startswith("http") else source
+    nom_fichier = Path(source).name if not str(source).startswith("http") else source
 
     stats_tess    = score_texte(texte_tesseract)
     stats_easyocr = score_texte(texte_easyocr)
@@ -236,12 +267,7 @@ def main() -> None:
         }
     }
 
-    sauvegarder_json(output_path, resultat)
-
-    # ------------------------------------------------------------------
-    # Résumé verbose
-    # ------------------------------------------------------------------
-    if args.verbose:
+    if verbose:
         print("\n--- Résumé OCR ---")
         print(f"  Fichier         : {nom_fichier}")
         print(f"  Source OCR      : {source_ocr}")
@@ -249,6 +275,33 @@ def main() -> None:
         print(f"  EasyOCR         : {stats_easyocr[0]} car. / {stats_easyocr[1]} lignes")
         print(f"  Type document   : {type_doc   or 'Non détecté'}")
         print(f"  Numéro document : {numero_doc or 'Non détecté'}")
+
+    return resultat
+
+
+# ---------------------------------------------------------------------------
+# Point d'entrée CLI
+# ---------------------------------------------------------------------------
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Pipeline OCR — combine Tesseract + EasyOCR et exporte en JSON."
+    )
+    parser.add_argument("source",   help="Chemin local ou URL de l'image.")
+    parser.add_argument("--output", "-o", default="resultat.json",
+                        help="Chemin du fichier JSON de sortie (défaut : resultat.json).")
+    parser.add_argument("--verbose", "-v", action="store_true",
+                        help="Affiche un résumé détaillé dans la console.")
+    args = parser.parse_args()
+
+    output_path = Path(args.output)
+
+    try:
+        resultat = traiter_image(args.source, verbose=args.verbose)
+    except RuntimeError as exc:
+        sys.exit(f"[ERREUR] {exc}")
+
+    sauvegarder_json(output_path, resultat)
 
 
 if __name__ == "__main__":
