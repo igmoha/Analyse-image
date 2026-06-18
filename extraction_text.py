@@ -114,12 +114,12 @@ def extract_info(text: str) -> dict:
 
     if mot_numero:
         # --- Étape 2 : chercher le numéro juste après le mot "numéro" ---
-        # On limite à 50 caractères après le mot-clé (espace, ":", séparateurs possibles)
-        zone = text_after[mot_numero.end(): mot_numero.end() + 50]
+        # On limite à 100 caractères après le mot-clé (espace, ":", séparateurs possibles)
+        zone = text_after[mot_numero.end(): mot_numero.end() + 100]
         num_match = re.search(doc_type["num_pattern"], zone)
     else:
-        # --- Fallback : pas de mot "numéro" trouvé, chercher dans les 150 car. suivants ---
-        zone = text_after[:150]
+        # --- Fallback : pas de mot "numéro" trouvé, chercher dans les 100 car. suivants ---
+        zone = text_after[:100]
         num_match = re.search(doc_type["num_pattern"], zone)
 
     return {
